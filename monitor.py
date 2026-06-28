@@ -1,6 +1,6 @@
-import requests as _requests
-from curl_cffi import requests as cffi_requests
+import requests
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 import json
 import hashlib
 import os
@@ -12,10 +12,6 @@ CHAT_ID = os.environ["CHAT_ID"]
 UPSTASH_URL = os.environ["UPSTASH_URL"]
 UPSTASH_TOKEN = os.environ["UPSTASH_TOKEN"]
 REDIS_KEY = "autotrader_snapshot"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-}
 
 
 def redis_get(key):
@@ -46,9 +42,20 @@ def send_telegram(message):
 
 
 def fetch_listings():
-    r = cffi_requests.get(URL, impersonate="chrome124", timeout=30)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale="en-GB",
+            viewport={"width": 1280, "height": 800},
+        )
+        page = context.new_page()
+        page.goto(URL, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(3000)
+        html = page.content()
+        browser.close()
+
+    soup = BeautifulSoup(html, "html.parser")
 
     cards = (
         soup.select("li[data-testid='trader-seller-listing']")
@@ -58,7 +65,7 @@ def fetch_listings():
 
     if not cards:
         main = soup.select_one("main") or soup.body
-        content = main.get_text(separator=" ", strip=True) if main else r.text
+        content = main.get_text(separator=" ", strip=True) if main else html
         return {"__hash__": hashlib.md5(content.encode()).hexdigest()}
 
     listings = {}
