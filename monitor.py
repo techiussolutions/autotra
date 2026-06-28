@@ -1,5 +1,5 @@
-import requests
-import cloudscraper
+import requests as _requests
+from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 import json
 import hashlib
@@ -46,8 +46,7 @@ def send_telegram(message):
 
 
 def fetch_listings():
-    scraper = cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "windows", "mobile": False})
-    r = scraper.get(URL, timeout=30)
+    r = cffi_requests.get(URL, impersonate="chrome124", timeout=30)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
 
